@@ -11,9 +11,11 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"io"
+	"os"
 
 	"golang.org/x/crypto/argon2"
 
@@ -21,6 +23,47 @@ import (
 
 	"golang.org/x/crypto/pbkdf2"
 )
+
+const DEFAULT_DATABASE_FILE_NAME = "pkeeper.db"
+
+func FindDatabaseFile() (string, error) {
+	const fileName = DEFAULT_DATABASE_FILE_NAME
+
+	wd, err := os.Getwd()
+	if err == nil {
+		workingPath := filepath.Join(wd, fileName)
+
+		info, err := os.Stat(workingPath)
+		if err == nil && !info.IsDir() {
+			abs, err := filepath.Abs(workingPath)
+			if err == nil {
+				return abs, nil
+			}
+
+			return workingPath, nil
+		}
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+
+	exeDir := filepath.Dir(exePath)
+	dbPath := filepath.Join(exeDir, fileName)
+
+	info, err := os.Stat(dbPath)
+	if err == nil && !info.IsDir() {
+		abs, err := filepath.Abs(dbPath)
+		if err == nil {
+			return abs, nil
+		}
+
+		return dbPath, nil
+	}
+
+	return "", fmt.Errorf("Database file not found")
+}
 
 const (
 	saltSize = 16
@@ -572,7 +615,7 @@ func reEncryptPasswords(
 			return err
 		}
 
-		password, err = EncryptText(newAdminPassword, entryPassword)
+		password, err = EncryptText(newAdminPassword, password)
 		if err != nil {
 			return err
 		}

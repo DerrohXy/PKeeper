@@ -6,50 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 )
-
-const DEFAULT_DATABASE_FILE_NAME = "pkeeper.db"
-
-func FindDatabaseFile() (string, error) {
-	const fileName = DEFAULT_DATABASE_FILE_NAME
-
-	wd, err := os.Getwd()
-	if err == nil {
-		workingPath := filepath.Join(wd, fileName)
-
-		info, err := os.Stat(workingPath)
-		if err == nil && !info.IsDir() {
-			abs, err := filepath.Abs(workingPath)
-			if err == nil {
-				return abs, nil
-			}
-
-			return workingPath, nil
-		}
-	}
-
-	exePath, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-
-	exeDir := filepath.Dir(exePath)
-	dbPath := filepath.Join(exeDir, fileName)
-
-	info, err := os.Stat(dbPath)
-	if err == nil && !info.IsDir() {
-		abs, err := filepath.Abs(dbPath)
-		if err == nil {
-			return abs, nil
-		}
-
-		return dbPath, nil
-	}
-
-	return "", fmt.Errorf("Database file not found")
-}
 
 type Terminal struct {
 	IsAuthenticated bool
@@ -213,12 +171,17 @@ func (instance *Terminal) ProcessCommand(command string) {
 			return
 		}
 
+		separator := "-------------------------------------"
+
 		for i := 0; i < len(existingPasswords); i += 1 {
 			entry := existingPasswords[i]
 			fmt.Printf(
-				"Username :%s\nPassword :%s\n-------------------------------------\n",
+				"%s\nSite :%s\nUsername :%s\nPassword :%s\n%s\n",
+				separator,
+				entry.Host,
 				entry.Username,
 				entry.Password,
+				separator,
 			)
 		}
 

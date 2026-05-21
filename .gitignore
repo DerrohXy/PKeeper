@@ -1,6 +1,7 @@
 *.env
 *.config
 *.db
+pkeeper.db
 .idea
 .dist
 .vscode
