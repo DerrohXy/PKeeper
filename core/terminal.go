@@ -13,6 +13,7 @@ type Terminal struct {
 	IsAuthenticated bool
 	AdminPassword   string
 	Database        *sql.DB
+	History         []string
 }
 
 func (instance *Terminal) Start(databasePath string) {
@@ -58,6 +59,8 @@ func (instance *Terminal) Start(databasePath string) {
 	for {
 		command := instance.ReadTerminalInput(">>>")
 		instance.ProcessCommand(command)
+
+		instance.History = append(instance.History, command)
 	}
 }
 
@@ -76,6 +79,7 @@ func (instance *Terminal) ReadTerminalInput(prompt string) string {
 func (instance *Terminal) ProcessCommand(command string) {
 	switch command {
 	case "quit":
+	case "exit":
 		os.Exit(0)
 
 	case "set-admin-password":
@@ -150,6 +154,40 @@ func (instance *Terminal) ProcessCommand(command string) {
 
 		return
 
+	case "get-hosts":
+		existingHosts, err := GetHosts(
+			instance.Database,
+			instance.AdminPassword,
+		)
+
+		if err != nil {
+			log.Println("Error fetching passwords.")
+			log.Println(err)
+
+			return
+		}
+
+		if len(existingHosts) < 1 {
+			log.Println("You have no saved passwords.")
+
+			return
+		}
+
+		separator := "-------------------------------------"
+
+		for i := 0; i < len(existingHosts); i += 1 {
+			entry := existingHosts[i]
+			fmt.Printf(
+				"%s\nSite :%s\nPasswords :%d\n%s\n",
+				separator,
+				entry.Host,
+				entry.PasswordCount,
+				separator,
+			)
+		}
+
+		return
+
 	case "get-password":
 		host := instance.ReadTerminalInput("Enter host :")
 		existingPasswords, err := GetPasswords(
@@ -167,6 +205,43 @@ func (instance *Terminal) ProcessCommand(command string) {
 
 		if len(existingPasswords) < 1 {
 			log.Printf("You have no saved passwords for %s.\n", host)
+
+			return
+		}
+
+		separator := "-------------------------------------"
+
+		for i := 0; i < len(existingPasswords); i += 1 {
+			entry := existingPasswords[i]
+			fmt.Printf(
+				"%s\nSite :%s\nUsername :%s\nPassword :%s\n%s\n",
+				separator,
+				entry.Host,
+				entry.Username,
+				entry.Password,
+				separator,
+			)
+		}
+
+		return
+
+	case "search-password":
+		search := instance.ReadTerminalInput("Enter search term :")
+		existingPasswords, err := SearchPasswords(
+			instance.Database,
+			instance.AdminPassword,
+			search,
+		)
+
+		if err != nil {
+			log.Println("Error searching passwords.")
+			log.Println(err)
+
+			return
+		}
+
+		if len(existingPasswords) < 1 {
+			log.Printf("No passwords matched your search for %s.\n", search)
 
 			return
 		}

@@ -29,6 +29,27 @@ const DEFAULT_DATABASE_FILE_NAME = "pkeeper.db"
 func FindDatabaseFile() (string, error) {
 	const fileName = DEFAULT_DATABASE_FILE_NAME
 
+	hd, err := os.UserHomeDir()
+	if err == nil {
+		directory := ".pkeeper"
+		hd = filepath.Join(hd, directory)
+
+		err := os.MkdirAll(hd, 0755)
+		if err == nil {
+			workingPath := filepath.Join(hd, fileName)
+
+			info, err := os.Stat(workingPath)
+			if err == nil && !info.IsDir() {
+				abs, err := filepath.Abs(workingPath)
+				if err == nil {
+					return abs, nil
+				}
+
+				return workingPath, nil
+			}
+		}
+	}
+
 	wd, err := os.Getwd()
 	if err == nil {
 		workingPath := filepath.Join(wd, fileName)
@@ -431,6 +452,114 @@ func GetPasswords(
 			return nil, err
 		}
 
+		entry.Username = username
+		entry.Password = password
+		entry.DateCreated = time.UnixMilli(int64(dateCreated))
+		entry.DateUpdated = time.UnixMilli(int64(dateUpdated))
+
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
+type HostPasswordCount struct {
+	Host          string
+	PasswordCount int
+}
+
+func GetHosts(
+	database *sql.DB,
+	adminPassword string,
+) ([]HostPasswordCount, error) {
+	err := VerifyAdminPassword(database, adminPassword)
+	if err != nil {
+		return nil, err
+	}
+
+	statement := `
+	SELECT
+		host,
+		COUNT(*) AS password_count
+	FROM passwords
+	WHERE host IS NOT NULL
+	AND host != ''
+	AND is_admin = ?
+	GROUP BY host
+	ORDER BY password_count DESC;
+	`
+	rows, err := database.Query(statement, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []HostPasswordCount
+	for rows.Next() {
+		entry := HostPasswordCount{}
+
+		var host string
+		var count int
+
+		rows.Scan(
+			&host,
+			&count,
+		)
+
+		entry.Host = host
+		entry.PasswordCount = count
+
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
+func SearchPasswords(
+	database *sql.DB,
+	adminPassword,
+	search string,
+) ([]PasswordEntry, error) {
+	err := VerifyAdminPassword(database, adminPassword)
+	if err != nil {
+		return nil, err
+	}
+
+	statement := `SELECT host, username, password, date_created, date_updated ` +
+		`FROM passwords WHERE (host LIKE ? OR username LIKE ?) AND is_admin = ?;`
+	rows, err := database.Query(
+		statement,
+		"%"+search+"%",
+		"%"+search+"%",
+		0,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var entries []PasswordEntry
+	for rows.Next() {
+		entry := PasswordEntry{}
+
+		var host string
+		var username string
+		var dateCreated int
+		var dateUpdated int
+		var encryptedPassword string
+
+		rows.Scan(
+			&host,
+			&username,
+			&encryptedPassword,
+			&dateCreated,
+			&dateUpdated,
+		)
+
+		password, err := DecryptText(adminPassword, encryptedPassword)
+		if err != nil {
+			return nil, err
+		}
+
+		entry.Host = host
 		entry.Username = username
 		entry.Password = password
 		entry.DateCreated = time.UnixMilli(int64(dateCreated))
