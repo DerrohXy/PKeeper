@@ -26,33 +26,37 @@ import (
 
 const DEFAULT_DATABASE_FILE_NAME = "pkeeper.db"
 
+func InitializeDefaultDatabase() (string, error) {
+	homeDirectory, err := os.UserHomeDir()
+	if err == nil {
+		directory := ".pkeeper"
+		homeDirectory = filepath.Join(homeDirectory, directory)
+
+		err := os.MkdirAll(homeDirectory, 0755)
+		if err == nil {
+			databaseFile := filepath.Join(homeDirectory, DEFAULT_DATABASE_FILE_NAME)
+			database, err := GetDatabase(databaseFile)
+			if err != nil {
+				return "", err
+			}
+
+			database.Close()
+
+			return databaseFile, nil
+		}
+
+		return "", err
+	}
+
+	return "", err
+}
+
 func FindDatabaseFile() (string, error) {
 	const fileName = DEFAULT_DATABASE_FILE_NAME
 
-	hd, err := os.UserHomeDir()
+	homeDirectory, err := InitializeDefaultDatabase()
 	if err == nil {
-		directory := ".pkeeper"
-		hd = filepath.Join(hd, directory)
-
-		err := os.MkdirAll(hd, 0755)
-		if err == nil {
-			workingPath := filepath.Join(hd, fileName)
-
-			info, err := os.Stat(workingPath)
-			if err == nil && !info.IsDir() {
-				abs, err := filepath.Abs(workingPath)
-				if err == nil {
-					return abs, nil
-				}
-
-				return workingPath, nil
-			}
-		}
-	}
-
-	wd, err := os.Getwd()
-	if err == nil {
-		workingPath := filepath.Join(wd, fileName)
+		workingPath := filepath.Join(homeDirectory, fileName)
 
 		info, err := os.Stat(workingPath)
 		if err == nil && !info.IsDir() {
@@ -65,12 +69,27 @@ func FindDatabaseFile() (string, error) {
 		}
 	}
 
-	exePath, err := os.Executable()
+	workingDirectory, err := os.Getwd()
+	if err == nil {
+		workingPath := filepath.Join(workingDirectory, fileName)
+
+		info, err := os.Stat(workingPath)
+		if err == nil && !info.IsDir() {
+			abs, err := filepath.Abs(workingPath)
+			if err == nil {
+				return abs, nil
+			}
+
+			return workingPath, nil
+		}
+	}
+
+	executablePath, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
 
-	exeDir := filepath.Dir(exePath)
+	exeDir := filepath.Dir(executablePath)
 	dbPath := filepath.Join(exeDir, fileName)
 
 	info, err := os.Stat(dbPath)
